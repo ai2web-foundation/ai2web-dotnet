@@ -1,0 +1,74 @@
+[
+  {
+    "name": "minimal valid manifest → Basic",
+    "manifest": {
+      "protocol": "ai2w", "version": "0.1",
+      "site": { "name": "Min", "url": "https://min.example", "type": "content" },
+      "capabilities": { "content": true }
+    },
+    "expect": { "valid": true, "tier": "Basic" }
+  },
+  {
+    "name": "full manifest with actions → Standard, high score",
+    "manifest": {
+      "protocol": "ai2w", "version": "0.1",
+      "site": { "name": "Store", "url": "https://store.example", "type": "ecommerce" },
+      "identity": { "legal_name": "Store Ltd" },
+      "capabilities": { "content": true, "commerce": { "enabled": true, "checkout": true }, "search": { "enabled": true }, "events": { "enabled": true }, "actions": { "enabled": true } },
+      "transports": { "rest": { "enabled": true }, "mcp": { "enabled": true, "endpoint": "/ai2w/mcp" } },
+      "auth": { "methods": ["none", "oauth2"], "oauth2": { "pkce": true, "scopes": ["checkout"] } },
+      "consent": { "requires_user_approval_for": ["purchase"] },
+      "agent_service": { "enabled": true, "endpoint": "/ai2w/agent" },
+      "contact": { "support": "a@store.example" }
+    },
+    "expect": { "valid": true, "tier": "Standard", "minScore": 90 }
+  },
+  {
+    "name": "adds identity + auth + rate_limits → Enterprise",
+    "manifest": {
+      "protocol": "ai2w", "version": "0.1",
+      "site": { "name": "Store", "url": "https://store.example", "type": "ecommerce" },
+      "identity": { "legal_name": "Store Ltd" },
+      "capabilities": { "content": true, "commerce": { "enabled": true, "checkout": true }, "actions": { "enabled": true } },
+      "transports": { "rest": { "enabled": true }, "mcp": { "enabled": true } },
+      "auth": { "methods": ["oauth2"], "oauth2": { "pkce": true } },
+      "consent": { "requires_user_approval_for": ["purchase"] },
+      "rate_limits": { "default": "60/min" },
+      "contact": { "support": "a@store.example" }
+    },
+    "expect": { "valid": true, "tier": "Enterprise" }
+  },
+  {
+    "name": "missing protocol → invalid",
+    "manifest": { "version": "0.1", "site": { "name": "X", "url": "https://x.example", "type": "content" }, "capabilities": { "content": true } },
+    "expect": { "valid": false, "tier": "Invalid", "errorsContain": "protocol" }
+  },
+  {
+    "name": "bad version → invalid",
+    "manifest": { "protocol": "ai2w", "version": "draft", "site": { "name": "X", "url": "https://x.example", "type": "content" }, "capabilities": { "content": true } },
+    "expect": { "valid": false, "errorsContain": "version" }
+  },
+  {
+    "name": "missing site.type → invalid",
+    "manifest": { "protocol": "ai2w", "version": "0.1", "site": { "name": "X", "url": "https://x.example" }, "capabilities": { "content": true } },
+    "expect": { "valid": false, "errorsContain": "site.type" }
+  },
+  {
+    "name": "empty capabilities → invalid",
+    "manifest": { "protocol": "ai2w", "version": "0.1", "site": { "name": "X", "url": "https://x.example", "type": "content" }, "capabilities": {} },
+    "expect": { "valid": false, "errorsContain": "capabilities" }
+  },
+  {
+    "name": "commerce without checkout → valid but Checkout warns",
+    "manifest": {
+      "protocol": "ai2w", "version": "0.1",
+      "site": { "name": "Store", "url": "https://store.example", "type": "ecommerce" },
+      "capabilities": { "content": true, "commerce": { "enabled": true } },
+      "transports": { "rest": { "enabled": true } },
+      "auth": { "methods": ["oauth2"], "oauth2": { "pkce": true } },
+      "consent": { "requires_user_approval_for": ["purchase"] },
+      "contact": { "support": "a@store.example" }
+    },
+    "expect": { "valid": true, "tier": "Standard", "warns": ["Checkout"] }
+  }
+]

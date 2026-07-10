@@ -1,0 +1,90 @@
+using System.Text.RegularExpressions;
+
+namespace Ai2Web;
+
+public sealed record Response(int Status, Dictionary<string, string> Headers, object? Body);
+
+/// <summary>Framework-agnostic AI2Web router. Port of @ai2web/server. Adapt to ASP.NET, etc.</summary>
+public static class Server
+{
+    public delegate object? Handler(object? body);
+
+    private static readonly Dictionary<string, string> Cors = new()
+    {
+        ["access-control-allow-origin"] = "*",
+        ["access-control-allow-methods"] = "GET, POST, OPTIONS",
+        ["access-control-allow-headers"] = "content-type, authorization",
+    };
+
+    private static readonly Regex ActionRe = new(@"^/ai2w/actions/([a-z0-9_-]+)$", RegexOptions.IgnoreCase);
+    private static readonly Regex ModuleRe = new(@"^/ai2w/([a-z0-9_-]+)$", RegexOptions.IgnoreCase);
+
+    private static Response Json(int status, object? body)
+    {
+        var h = new Dictionary<string, string> { ["content-type"] = "application/json; charset=utf-8" };
+        foreach (var kv in Cors) h[kv.Key] = kv.Value;
+        return new Response(status, h, body);
+    }
+
+    private static Response Error(int status, string code, string message) =>
+        Json(status, new Dictionary<string, object?> { ["error"] = new Dictionary<string, object?> { ["code"] = code, ["message"] = message, ["retryable"] = false } });
+
+    public static Response Handle(
+        Dictionary<string, object?> manifest,
+        string method,
+        string path,
+        object? body = null,
+        string? origin = null,
+        Dictionary<string, Handler>? modules = null,
+        Dictionary<string, Handler>? actions = null)
+    {
+        modules ??= new();
+        actions ??= new();
+
+        var trimmed = path.Trim('/');
+        path = trimmed.Length == 0 ? "/" : "/" + trimmed;
+        method = method.ToUpperInvariant();
+
+        if (method == "OPTIONS") return new Response(204, Cors, null);
+
+        if (path == "/.well-known/ai2w")
+            return origin != null
+                ? Json(200, new Dictionary<string, object?> { ["ai2w"] = origin.TrimEnd('/') + "/ai2w" })
+                : Json(200, manifest);
+
+        if (path is "/ai2w" or "/ai" or "/.ai")
+            return method != "GET" ? Error(405, "invalid_request", "Use GET for the manifest.") : Json(200, manifest);
+
+        if (path == "/ai2w/negotiate")
+        {
+            var supports = new Dictionary<string, object?>();
+            if (H.Map(body) is { } bm)
+            {
+                if (H.Map(bm.GetValueOrDefault("agent"))?.GetValueOrDefault("supports") is Dictionary<string, object?> s) supports = s;
+                else if (H.Map(bm.GetValueOrDefault("supports")) is { } s2) supports = s2;
+                else supports = bm;
+            }
+            return Json(200, Negotiator.Negotiate(manifest, supports));
+        }
+
+        var am = ActionRe.Match(path);
+        if (am.Success)
+        {
+            var name = am.Groups[1].Value.Replace("-", "_");
+            return actions.TryGetValue(name, out var fn)
+                ? Json(200, fn(body))
+                : Error(404, "unsupported_capability", $"Unknown action '{name}'.");
+        }
+
+        var mm = ModuleRe.Match(path);
+        if (mm.Success)
+        {
+            var name = mm.Groups[1].Value;
+            return modules.TryGetValue(name, out var fn)
+                ? Json(200, fn(body))
+                : Error(404, "unsupported_capability", $"Module '{name}' not exposed.");
+        }
+
+        return Error(404, "invalid_request", $"No AI2Web route for {path}.");
+    }
+}

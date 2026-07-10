@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <PackageId>Ai2Web</PackageId>
+    <Version>0.1.0</Version>
+    <Description>AI2Web (ai2w) .NET SDK - capability model, manifest builder, validator, negotiation, server handler.</Description>
+    <Authors>AI2Web Foundation</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+
+</Project>
