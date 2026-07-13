@@ -82,6 +82,45 @@ foreach (var c in cases.EnumerateArray())
     Check(probs.Count == 0, "conformance: " + name, probs.Count > 0 ? probs : null);
 }
 
+// --- request validation (Schema + server) ---
+var schema = new Dictionary<string, object?>
+{
+    ["type"] = "object",
+    ["properties"] = new Dictionary<string, object?>
+    {
+        ["order_id"] = new Dictionary<string, object?> { ["type"] = "string" },
+        ["qty"] = new Dictionary<string, object?> { ["type"] = "integer" },
+    },
+    ["required"] = new List<object?> { "order_id" },
+};
+Check(Schema.Validate(new Dictionary<string, object?> { ["order_id"] = "A1", ["qty"] = 2.0 }, schema).Valid, "schema: valid input passes");
+Check(!Schema.Validate(new Dictionary<string, object?> { ["qty"] = 2.0 }, schema).Valid, "schema: missing required fails");
+Check(!Schema.Validate(new Dictionary<string, object?> { ["order_id"] = 5.0 }, schema).Valid, "schema: wrong type fails");
+Check(!Schema.Validate(new Dictionary<string, object?> { ["order_id"] = "A1", ["qty"] = 1.5 }, schema).Valid, "schema: non-integer fails");
+Check(Schema.Validate(new Dictionary<string, object?> { ["anything"] = 1 }, new Dictionary<string, object?>()).Valid, "schema: empty schema accepts anything");
+
+var actMan = new Dictionary<string, object?>
+{
+    ["protocol"] = "ai2w",
+    ["actions"] = new List<object?>
+    {
+        new Dictionary<string, object?>
+        {
+            ["name"] = "track_order",
+            ["endpoint"] = "/ai2w/actions/track-order",
+            ["input_schema"] = schema,
+        },
+    },
+};
+var acts = new Dictionary<string, Server.Handler> { ["track_order"] = _ => new Dictionary<string, object?> { ["ok"] = true } };
+var okRes = Server.Handle(actMan, "POST", "/ai2w/actions/track-order", new Dictionary<string, object?> { ["order_id"] = "A1" }, actions: acts);
+Check(okRes.Status == 200, "server: valid body -> 200", okRes.Status);
+var badRes = Server.Handle(actMan, "POST", "/ai2w/actions/track-order", new Dictionary<string, object?>(), actions: acts);
+var badErr = (badRes.Body as Dictionary<string, object?>)?["error"] as Dictionary<string, object?>;
+Check(badRes.Status == 400 && badErr?["code"] as string == "invalid_request", "server: missing required -> 400 invalid_request", badRes.Body);
+var offRes = Server.Handle(actMan, "POST", "/ai2w/actions/track-order", new Dictionary<string, object?>(), actions: acts, validateInput: false);
+Check(offRes.Status == 200, "server: validateInput=false opt-out passes through", offRes.Status);
+
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "ALL PASS" : $"{failures} FAILED");
 return failures == 0 ? 0 : 1;

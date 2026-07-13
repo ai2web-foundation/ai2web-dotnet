@@ -1,5 +1,7 @@
 # AI2Web .NET SDK (`Ai2Web`)
 
+[![CI](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml)
+
 The .NET reference implementation of the [AI2Web protocol](https://github.com/ai2web-foundation/ai2web-spec). Mirrors `@ai2web/core`.
 
 ```csharp

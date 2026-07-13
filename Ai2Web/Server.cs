@@ -29,6 +29,14 @@ public static class Server
     private static Response Error(int status, string code, string message) =>
         Json(status, new Dictionary<string, object?> { ["error"] = new Dictionary<string, object?> { ["code"] = code, ["message"] = message, ["retryable"] = false } });
 
+    private static object? ActionInputSchema(Dictionary<string, object?> manifest, string name)
+    {
+        foreach (var a in H.List(manifest.GetValueOrDefault("actions")) ?? new())
+            if (H.Map(a) is { } am && am.GetValueOrDefault("name") as string == name)
+                return am.GetValueOrDefault("input_schema");
+        return null;
+    }
+
     public static Response Handle(
         Dictionary<string, object?> manifest,
         string method,
@@ -36,7 +44,8 @@ public static class Server
         object? body = null,
         string? origin = null,
         Dictionary<string, Handler>? modules = null,
-        Dictionary<string, Handler>? actions = null)
+        Dictionary<string, Handler>? actions = null,
+        bool validateInput = true)
     {
         modules ??= new();
         actions ??= new();
@@ -71,9 +80,15 @@ public static class Server
         if (am.Success)
         {
             var name = am.Groups[1].Value.Replace("-", "_");
-            return actions.TryGetValue(name, out var fn)
-                ? Json(200, fn(body))
-                : Error(404, "unsupported_capability", $"Unknown action '{name}'.");
+            if (!actions.TryGetValue(name, out var fn))
+                return Error(404, "unsupported_capability", $"Unknown action '{name}'.");
+            if (validateInput && ActionInputSchema(manifest, name) is { } inputSchema)
+            {
+                var r = Schema.Validate(body ?? new Dictionary<string, object?>(), inputSchema);
+                if (!r.Valid)
+                    return Error(400, "invalid_request", "Request does not match the declared input schema: " + string.Join("; ", r.Errors) + ".");
+            }
+            return Json(200, fn(body));
         }
 
         var mm = ModuleRe.Match(path);
