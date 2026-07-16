@@ -1,3 +1,12 @@
+<div align="center">
+  <a href="https://ai2web.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ai2web-foundation/.github/main/profile/ai2web-logo-white.svg">
+      <img alt="AI2Web" src="https://raw.githubusercontent.com/ai2web-foundation/.github/main/profile/ai2web-logo-black.svg" width="200">
+    </picture>
+  </a>
+</div>
+
 # AI2Web .NET SDK (`Ai2Web`)
 
 [![CI](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml)
