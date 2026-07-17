@@ -10,8 +10,14 @@
 # AI2Web .NET SDK (`Ai2Web`)
 
 [![CI](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/Ai2Web)](https://www.nuget.org/packages/Ai2Web)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Ai2Web)](https://www.nuget.org/packages/Ai2Web)
 
 The .NET reference implementation of the [AI2Web protocol](https://github.com/ai2web-foundation/ai2web-spec). Mirrors `@ai2web/core`.
+
+```bash
+dotnet add package Ai2Web
+```
 
 ```csharp
 using Ai2Web;

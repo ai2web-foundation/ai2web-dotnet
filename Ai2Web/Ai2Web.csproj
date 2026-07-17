@@ -10,6 +10,15 @@
     <Description>AI2Web (ai2w) .NET SDK - capability model, manifest builder, validator, negotiation, server handler.</Description>
     <Authors>AI2Web Foundation</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>ai2web;ai2w;ai;agents;mcp;protocol;manifest;agentic-web</PackageTags>
+    <PackageProjectUrl>https://ai2web.dev</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ai2web-foundation/ai2web-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
 </Project>
