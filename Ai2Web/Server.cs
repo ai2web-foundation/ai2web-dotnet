@@ -29,6 +29,13 @@ public static class Server
     private static Response Error(int status, string code, string message) =>
         Json(status, new Dictionary<string, object?> { ["error"] = new Dictionary<string, object?> { ["code"] = code, ["message"] = message, ["retryable"] = false } });
 
+    private static Response Text(int status, string contentType, string body)
+    {
+        var h = new Dictionary<string, string> { ["content-type"] = contentType };
+        foreach (var kv in Cors) h[kv.Key] = kv.Value;
+        return new Response(status, h, body);
+    }
+
     private static object? ActionInputSchema(Dictionary<string, object?> manifest, string name)
     {
         foreach (var a in H.List(manifest.GetValueOrDefault("actions")) ?? new())
@@ -63,6 +70,18 @@ public static class Server
 
         if (path is "/ai2w" or "/ai" or "/.ai")
             return method != "GET" ? Error(405, "invalid_request", "Use GET for the manifest.") : Json(200, manifest);
+
+        // Multi-surface projections (RFC-0015): the one canonical manifest, emitted in other
+        // discovery formats so agents that speak llms.txt or agent.json need not parse ai2w first.
+        if (path == "/llms.txt")
+            return method != "GET"
+                ? Error(405, "invalid_request", "Use GET for llms.txt.")
+                : Text(200, "text/plain; charset=utf-8", Export.ToLlmsTxt(manifest));
+
+        if (path is "/.well-known/agent.json" or "/agent.json")
+            return method != "GET"
+                ? Error(405, "invalid_request", "Use GET for agent.json.")
+                : Json(200, Export.ToAgentJson(manifest));
 
         if (path == "/ai2w/negotiate")
         {

@@ -12,7 +12,7 @@ public sealed class Manifest
         _m = new Dictionary<string, object?>
         {
             ["protocol"] = "ai2w",
-            ["version"] = "0.1",
+            ["version"] = "0.2",
             ["site"] = site,
             ["capabilities"] = new Dictionary<string, object?>(),
         };
@@ -55,6 +55,19 @@ public sealed class Manifest
     }
 
     public Manifest AgentService(Dictionary<string, object?> s) { _m["agent_service"] = s; return this; }
+
+    // v0.2 optional modules (all additive; a minimal manifest stays valid without them).
+    public Manifest Governance(Dictionary<string, object?> g) { _m["governance"] = g; return this; }
+    public Manifest UsagePolicy(Dictionary<string, object?> u) { _m["usage_policy"] = u; return this; }
+    public Manifest Legal(Dictionary<string, object?> l) { _m["legal"] = l; return this; }
+    public Manifest Knowledge(List<object?> k) { _m["knowledge"] = k; return this; }
+
+    public Manifest AgentIdentity(Dictionary<string, object?> a)
+    {
+        if (_m.GetValueOrDefault("identity") is not Dictionary<string, object?> id) { id = new(); _m["identity"] = id; }
+        id["agent"] = a;
+        return this;
+    }
 
     public Dictionary<string, object?> Build() => _m;
 

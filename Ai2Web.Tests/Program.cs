@@ -121,6 +121,77 @@ Check(badRes.Status == 400 && badErr?["code"] as string == "invalid_request", "s
 var offRes = Server.Handle(actMan, "POST", "/ai2w/actions/track-order", new Dictionary<string, object?>(), actions: acts, validateInput: false);
 Check(offRes.Status == 200, "server: validateInput=false opt-out passes through", offRes.Status);
 
+// --- v0.2 modules + export adapters (parity with @ai2web/core) ---
+var m2 = Manifest.ForSite("Example Bistro", "https://bistro.example", "restaurant")
+    .Capability("content")
+    .Capability("commerce", new Dictionary<string, object?> { ["endpoint"] = "/ai2w/products" })
+    .Capability("search", new Dictionary<string, object?> { ["endpoint"] = "/ai2w/search" })
+    .Action(new Dictionary<string, object?>
+    {
+        ["name"] = "book_table", ["description"] = "Reserve a table.", ["method"] = "POST",
+        ["endpoint"] = "/ai2w/actions/book-table", ["requires_auth"] = false, ["requires_user_approval"] = true,
+        ["risk"] = "medium", ["intent"] = "reserve_table",
+        ["bindings"] = new List<object?>
+        {
+            new Dictionary<string, object?> { ["kind"] = "mcp", ["ref"] = "book_table", ["priority"] = 1 },
+            new Dictionary<string, object?> { ["kind"] = "redirect", ["ref"] = "/reserve", ["priority"] = 9, ["fallback_only"] = true },
+        },
+    })
+    .Knowledge(new List<object?> { new Dictionary<string, object?> { ["id"] = "menu", ["name"] = "Menu", ["kind"] = "catalog", ["ref"] = "/ai2w/products", ["format"] = "json" } })
+    .Governance(new Dictionary<string, object?> { ["rate_limits"] = new Dictionary<string, object?> { ["requests"] = 60, ["window_seconds"] = 60 }, ["consent_mode"] = new Dictionary<string, object?> { ["book_table"] = "explicit" } })
+    .UsagePolicy(new Dictionary<string, object?> { ["bulk_extraction"] = false, ["model_training"] = false })
+    .Legal(new Dictionary<string, object?> { ["jurisdiction"] = "EU", ["ai_transparency"] = true, ["ai_risk_classification"] = "limited" })
+    .AgentIdentity(new Dictionary<string, object?> { ["required"] = false, ["allow_anonymous"] = true, ["methods"] = new List<object?> { "http_message_signatures" } })
+    .Contact(new Dictionary<string, object?> { ["support"] = "hi@bistro.example" })
+    .Build();
+
+Check(m2["version"] is "0.2", "builder defaults to version 0.2", m2["version"]);
+var gov = (m2["governance"] as Dictionary<string, object?>)?["rate_limits"] as Dictionary<string, object?>;
+Check(gov?["requests"] is 60, "builder: governance");
+Check((m2["usage_policy"] as Dictionary<string, object?>)?["model_training"] is false, "builder: usage_policy");
+Check((m2["legal"] as Dictionary<string, object?>)?["ai_risk_classification"] is "limited", "builder: legal");
+var agent = (m2["identity"] as Dictionary<string, object?>)?["agent"] as Dictionary<string, object?>;
+Check((agent?["methods"] as List<object?>)?[0] is "http_message_signatures", "builder: agent identity");
+Check(((m2["knowledge"] as List<object?>)?[0] as Dictionary<string, object?>)?["id"] is "menu", "builder: knowledge");
+var act0 = (m2["actions"] as List<object?>)?[0] as Dictionary<string, object?>;
+Check(act0?["intent"] is "reserve_table", "action: intent");
+Check((act0?["bindings"] as List<object?>)?.Count == 2, "action: bindings");
+Check(((act0?["bindings"] as List<object?>)?[1] as Dictionary<string, object?>)?["fallback_only"] is true, "action: fallback_only binding");
+
+var txt = Export.ToLlmsTxt(m2);
+Check(txt.StartsWith("# Example Bistro"), "llms.txt: title");
+Check(txt.Contains("## Capabilities") && txt.Contains("- commerce"), "llms.txt: capabilities");
+Check(txt.Contains("## Knowledge") && txt.Contains("Menu"), "llms.txt: knowledge");
+Check(txt.Contains("book_table: Reserve a table."), "llms.txt: action");
+Check(txt.Contains("https://bistro.example/ai2w"), "llms.txt: discovery link");
+
+var aj = Export.ToAgentJson(m2);
+Check(aj["name"] as string == "Example Bistro", "agent.json: name");
+Check((aj["capabilities"] as List<string>)?.Contains("commerce") == true, "agent.json: capabilities");
+var ajAct0 = (aj["actions"] as List<object?>)?[0] as Dictionary<string, object?>;
+Check(ajAct0?["intent"] is "reserve_table", "agent.json: action intent");
+Check((ajAct0?["bindings"] as List<object?>)?.Count == 2, "agent.json: bindings preserved");
+var pol = aj["policies"] as Dictionary<string, object?>;
+Check((pol?["legal"] as Dictionary<string, object?>)?["jurisdiction"] is "EU", "agent.json: legal in policies");
+Check(((pol?["governance"] as Dictionary<string, object?>)?["consent_mode"] as Dictionary<string, object?>)?["book_table"] is "explicit", "agent.json: governance carried");
+var ajDefault = Export.ToAgentJson(Manifest.ForSite("X", "https://x.example", "site")
+    .Action(new Dictionary<string, object?> { ["name"] = "a", ["description"] = "d", ["method"] = "POST", ["endpoint"] = "/ai2w/actions/a", ["requires_auth"] = false, ["requires_user_approval"] = false, ["risk"] = "low" })
+    .Build());
+var defBind = ((ajDefault["actions"] as List<object?>)?[0] as Dictionary<string, object?>)?["bindings"] as List<object?>;
+Check((defBind?[0] as Dictionary<string, object?>)?["kind"] is "rest", "agent.json: default rest binding");
+
+// --- multi-surface serving (llms.txt + agent.json) ---
+var llmsRes = Server.Handle(m2, "GET", "/llms.txt");
+Check(llmsRes.Status == 200 && (llmsRes.Headers.GetValueOrDefault("content-type") ?? "").StartsWith("text/plain"), "server: /llms.txt text/plain");
+Check(llmsRes.Body is string ls && ls.StartsWith("# Example Bistro"), "server: /llms.txt body");
+var ajRes = Server.Handle(m2, "GET", "/.well-known/agent.json");
+Check(ajRes.Status == 200 && (ajRes.Body as Dictionary<string, object?>)?["name"] as string == "Example Bistro", "server: /.well-known/agent.json");
+var ajAlias = Server.Handle(m2, "GET", "/agent.json");
+var ajAliasPol = (ajAlias.Body as Dictionary<string, object?>)?["policies"] as Dictionary<string, object?>;
+Check(ajAlias.Status == 200 && ((ajAliasPol?["governance"] as Dictionary<string, object?>)?["rate_limits"] as Dictionary<string, object?>)?["requests"] is 60, "server: /agent.json alias + governance");
+var llmsPost = Server.Handle(m2, "POST", "/llms.txt");
+Check(llmsPost.Status == 405, "server: /llms.txt POST -> 405");
+
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "ALL PASS" : $"{failures} FAILED");
 return failures == 0 ? 0 : 1;
