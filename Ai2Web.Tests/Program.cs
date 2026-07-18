@@ -58,6 +58,22 @@ Check(!Safety.IsSafePublicUrl("http://169.254.169.254/latest"), "ssrf blocks met
 Check(!Safety.IsSafePublicUrl("http://localhost:8080"), "ssrf blocks localhost");
 Check(!Safety.IsSafePublicUrl("https://10.0.0.5/x"), "ssrf blocks private");
 
+// SSRF bypass matrix: alternative IP encodings + IPv4-mapped IPv6 must all be blocked.
+foreach (var u in new[] {
+    "http://127.0.0.1/", "http://127.1/", "http://0/", "http://0.0.0.0/",
+    "http://[::1]/", "http://[fd00::1]/", "http://[fe80::1]/",
+    "http://172.16.0.1/", "http://192.168.1.1/", "http://100.64.0.1/",
+    "http://2130706433/", "http://0x7f000001/", "http://0x7f.0.0.1/", "http://017700000001/",
+    "http://[::ffff:127.0.0.1]/", "http://[::ffff:169.254.169.254]/",
+    "ftp://127.0.0.1/", "file:///etc/passwd",
+})
+    Check(!Safety.IsSafePublicUrl(u), "ssrf blocks " + u);
+foreach (var u in new[] {
+    "https://api.stripe.com/v1", "https://fcbarcelona.com/",
+    "http://93.184.216.34/", "https://[2606:4700::6810:85e5]/", "https://sub.domain.co.uk/path?q=1",
+})
+    Check(Safety.IsSafePublicUrl(u), "ssrf allows " + u);
+
 // --- conformance contract ---
 var casesPath = Path.Combine(AppContext.BaseDirectory, "conformance_cases.json");
 var cases = JsonDocument.Parse(File.ReadAllText(casesPath)).RootElement;

@@ -40,6 +40,7 @@ public static class Safety
 
         if (IPAddress.TryParse(host.Trim('[', ']'), out var ip))
         {
+            if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();   // treat ::ffff:a.b.c.d as a.b.c.d
             if (IPAddress.IsLoopback(ip)) return false;
             var b = ip.GetAddressBytes();
             if (ip.AddressFamily == AddressFamily.InterNetwork)
@@ -59,6 +60,13 @@ public static class Safety
         }
 
         if (host == "localhost" || host.EndsWith(".localhost")) return false;
+
+        // Alternative IPv4 encodings that did not normalise to a parseable IP but a resolver may
+        // still map to a private address: hex (0x7f000001 / 0x7f.0.0.1), decimal integer
+        // (2130706433), octal, and short forms (127.1).
+        foreach (var label in host.Split('.'))
+            if (label.StartsWith("0x")) return false;
+        if (!host.Any(c => c is >= 'a' and <= 'z')) return false;
         return true;
     }
 
