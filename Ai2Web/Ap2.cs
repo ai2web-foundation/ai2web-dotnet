@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -238,7 +239,105 @@ public static class Ap2
 
     // --- helpers ---
 
-    private static byte[] Canonical(object? v) => JsonSerializer.SerializeToUtf8Bytes(v);
+    private static byte[] Canonical(object? v) => Encoding.UTF8.GetBytes(CanonicalJson(v));
+
+    /// <summary>
+    /// JCS (RFC 8785) canonicalisation, so a cart_hash is byte-identical across every SDK: object
+    /// keys sorted, no whitespace, minimal string escaping, integers without a decimal point,
+    /// currency amounts as a short decimal.
+    /// </summary>
+    public static string CanonicalJson(object? v)
+    {
+        var sb = new StringBuilder();
+        Jcs(sb, v);
+        return sb.ToString();
+    }
+
+    private static void Jcs(StringBuilder sb, object? v)
+    {
+        switch (v)
+        {
+            case null:
+                sb.Append("null");
+                break;
+            case bool b:
+                sb.Append(b ? "true" : "false");
+                break;
+            case string s:
+                JcsString(sb, s);
+                break;
+            case double d:
+                sb.Append(JcsNumber(d));
+                break;
+            case float f:
+                sb.Append(JcsNumber(f));
+                break;
+            case int i:
+                sb.Append(i.ToString(CultureInfo.InvariantCulture));
+                break;
+            case long l:
+                sb.Append(l.ToString(CultureInfo.InvariantCulture));
+                break;
+            case System.Collections.IDictionary dict:
+                var keys = dict.Keys.Cast<object>().Select(k => k.ToString()!).OrderBy(k => k, StringComparer.Ordinal).ToList();
+                sb.Append('{');
+                for (int n = 0; n < keys.Count; n++)
+                {
+                    if (n > 0) sb.Append(',');
+                    JcsString(sb, keys[n]);
+                    sb.Append(':');
+                    Jcs(sb, dict[keys[n]]);
+                }
+                sb.Append('}');
+                break;
+            case System.Collections.IEnumerable e:
+                sb.Append('[');
+                bool first = true;
+                foreach (var item in e)
+                {
+                    if (!first) sb.Append(',');
+                    first = false;
+                    Jcs(sb, item);
+                }
+                sb.Append(']');
+                break;
+            default:
+                sb.Append("null");
+                break;
+        }
+    }
+
+    private static string JcsNumber(double x)
+    {
+        if (x == Math.Truncate(x) && Math.Abs(x) < 1e15)
+        {
+            return ((long)x).ToString(CultureInfo.InvariantCulture);
+        }
+        return x.ToString("F2", CultureInfo.InvariantCulture).TrimEnd('0').TrimEnd('.');
+    }
+
+    private static void JcsString(StringBuilder sb, string s)
+    {
+        sb.Append('"');
+        foreach (char c in s)
+        {
+            switch (c)
+            {
+                case '"': sb.Append("\\\""); break;
+                case '\\': sb.Append("\\\\"); break;
+                case '\b': sb.Append("\\b"); break;
+                case '\t': sb.Append("\\t"); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\f': sb.Append("\\f"); break;
+                case '\r': sb.Append("\\r"); break;
+                default:
+                    if (c < 0x20) sb.Append("\\u").Append(((int)c).ToString("x4"));
+                    else sb.Append(c);
+                    break;
+            }
+        }
+        sb.Append('"');
+    }
 
     private static long NowTs() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 

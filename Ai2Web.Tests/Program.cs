@@ -244,6 +244,9 @@ var ap2t = Ap2.Transport();
 Check(ap2t["enabled"] is true && ap2t["version"] as string == "0.2.0", "ap2: transport advertises version");
 Check((ap2t["extension"] as string)?.Contains("ap2") == true, "ap2: transport carries the extension uri");
 
+var ap2Golden = new Dictionary<string, object?> { ["z"] = "a/b", ["currency"] = "GBP", ["n"] = 10.0, ["items"] = new List<object?> { new Dictionary<string, object?> { ["value"] = 9.99, ["label"] = "Mug" } }, ["ok"] = true };
+Check(Ap2.CanonicalJson(ap2Golden) == "{\"currency\":\"GBP\",\"items\":[{\"label\":\"Mug\",\"value\":9.99}],\"n\":10,\"ok\":true,\"z\":\"a/b\"}", "ap2: JCS canonical is cross-SDK stable", Ap2.CanonicalJson(ap2Golden));
+
 var ap2Intent = Ap2.IntentMandate("a red basketball shoe", skus: new[] { "SHOE-1" }, now: 1000);
 Check(ap2Intent["natural_language_description"] as string == "a red basketball shoe" && ap2Intent.ContainsKey("intent_expiry"), "ap2: intent mandate built");
 
