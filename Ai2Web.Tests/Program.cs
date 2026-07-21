@@ -279,6 +279,23 @@ var ap2Pd = Ap2.PaymentDetails(new Dictionary<string, object?>
 });
 Check(ap2Pd["payment_details_id"] as string == "pr_x" && ap2Pd["method"] as string == "card" && ap2Pd["payer_email"] as string == "a@b.com", "ap2: payment mandate parsed");
 
+// --- NLWeb (nlweb.ai) interop ---
+var nlt = Nlweb.Transport();
+Check(nlt["enabled"] is true && nlt["version"] as string == "0.55" && !string.IsNullOrEmpty(nlt["ask"] as string), "nlweb: transport advertises ask endpoint");
+
+var nlr = Nlweb.AskResponse("red shoes", new[]
+{
+    new Dictionary<string, object?> { ["url"] = "https://s.example/1", ["name"] = "Red Shoe", ["description"] = "A red running shoe", ["score"] = 90 },
+    new Dictionary<string, object?> { ["url"] = "https://s.example/2", ["title"] = "Crimson Sneaker" },
+}, site: "store");
+var nlResults = nlr["results"] as List<object?>;
+Check(nlResults?.Count == 2 && nlr["query"] as string == "red shoes", "nlweb: ask response envelope", nlr["query"]);
+var nlR0 = nlResults![0] as Dictionary<string, object?>;
+Check(nlR0!["@type"] as string == "Item" && nlR0["name"] as string == "Red Shoe" && nlR0["score"] is 90 && nlR0["site"] as string == "store", "nlweb: item fields mapped");
+var nlR1 = nlResults[1] as Dictionary<string, object?>;
+var nlSchema = nlR1!["schema_object"] as Dictionary<string, object?>;
+Check(nlR1["name"] as string == "Crimson Sneaker" && nlSchema!["@type"] as string == "Thing", "nlweb: title falls back to name + schema_object built");
+
 Console.WriteLine();
 Console.WriteLine(failures == 0 ? "ALL PASS" : $"{failures} FAILED");
 return failures == 0 ? 0 : 1;
