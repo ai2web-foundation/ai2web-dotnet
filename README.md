@@ -9,6 +9,8 @@
 
 # AI2Web .NET SDK (`Ai2Web`)
 
+[![AI2Web on Launchpadly - Product of the Week (Gold)](https://launchpadly.co/embed/badges/startup/ai2web.svg?variant=product-week-gold)](https://launchpadly.co/startup/ai2web?ref=badge)
+
 [![CI](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/ai2web-foundation/ai2web-dotnet/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Ai2Web)](https://www.nuget.org/packages/Ai2Web)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Ai2Web)](https://www.nuget.org/packages/Ai2Web)
