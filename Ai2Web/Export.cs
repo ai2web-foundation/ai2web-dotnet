@@ -119,4 +119,67 @@ public static class Export
             },
         };
     }
+
+    /// <summary>OAuth 2.0 Protected Resource metadata (RFC 9728), for
+    /// /.well-known/oauth-protected-resource. MCP clients read this to discover which
+    /// authorization server guards the resource. Null when the site does not advertise oauth2.</summary>
+    public static Dictionary<string, object?>? ToOAuthProtectedResource(Dictionary<string, object?> m)
+    {
+        var auth = m.GetValueOrDefault("auth") as Dictionary<string, object?> ?? new();
+        var methods = auth.GetValueOrDefault("methods") as IEnumerable<object?> ?? Array.Empty<object?>();
+        if (!methods.Any(x => Str(x) == "oauth2")) return null;
+
+        var site = m.GetValueOrDefault("site") as Dictionary<string, object?> ?? new();
+        var baseUrl = Str(site.GetValueOrDefault("url")).TrimEnd('/');
+        var o2 = auth.GetValueOrDefault("oauth2") as Dictionary<string, object?> ?? new();
+        var issuer = baseUrl;
+        var authz = Str(o2.GetValueOrDefault("authorization_url"));
+        if (authz != "" && Uri.TryCreate(authz, UriKind.Absolute, out var u))
+            issuer = u.Scheme + "://" + u.Authority;
+
+        var doc = new Dictionary<string, object?>
+        {
+            ["resource"] = baseUrl + "/ai2w",
+            ["authorization_servers"] = new List<string> { issuer },
+            ["bearer_methods_supported"] = new List<string> { "header" },
+        };
+        if (o2.GetValueOrDefault("scopes") is IEnumerable<object?> sc && sc.Any())
+            doc["scopes_supported"] = sc.Select(Str).ToList();
+        return doc;
+    }
+
+    /// <summary>Map usage_policy onto Content Signals tokens. `search` stays yes because AI2Web
+    /// exists to be discoverable; AI signals are only asserted when the manifest states them, so
+    /// an unset policy is never reported as a refusal. Null when no policy is declared.</summary>
+    public static string? ToContentSignals(Dictionary<string, object?> m)
+    {
+        if (m.GetValueOrDefault("usage_policy") is not Dictionary<string, object?> p || p.Count == 0) return null;
+        var signals = new List<string> { "search=yes" };
+        if (p.GetValueOrDefault("content_reproduction") is bool cr) signals.Add("ai-input=" + (cr ? "yes" : "no"));
+        if (p.GetValueOrDefault("model_training") is bool mt) signals.Add("ai-train=" + (mt ? "yes" : "no"));
+        return string.Join(", ", signals);
+    }
+
+    /// <summary>A robots.txt FRAGMENT carrying the usage policy and a manifest pointer. Append to
+    /// an existing robots.txt; never a replacement, and it emits no Disallow rules.</summary>
+    public static string ToRobotsTxt(Dictionary<string, object?> m)
+    {
+        var site = m.GetValueOrDefault("site") as Dictionary<string, object?> ?? new();
+        var baseUrl = Str(site.GetValueOrDefault("url")).TrimEnd('/');
+        var lines = new List<string> { "# AI2Web usage policy, projected from " + baseUrl + "/ai2w", "User-agent: *" };
+        var signals = ToContentSignals(m);
+        if (signals != null) lines.Add("Content-Signal: " + signals);
+        if (m.GetValueOrDefault("usage_policy") is Dictionary<string, object?> up
+            && up.GetValueOrDefault("bulk_extraction") is false)
+            lines.Add("# bulk_extraction: false - please use the /ai2w endpoints instead of crawling");
+        lines.Add("# AI2Web-Manifest: " + baseUrl + "/ai2w");
+        return string.Join("\n", lines) + "\n";
+    }
+
+    /// <summary>Value for an HTTP Link header advertising the manifest to non-HTML clients.</summary>
+    public static string ToDiscoveryLinkHeader(Dictionary<string, object?> m)
+    {
+        var site = m.GetValueOrDefault("site") as Dictionary<string, object?> ?? new();
+        return "<" + Str(site.GetValueOrDefault("url")).TrimEnd('/') + "/ai2w>; rel=\"ai2w\"";
+    }
 }
